@@ -91,3 +91,21 @@ State of charge is expressed as a percentage of NOMINAL capacity, not of the
 capacity available at the current temperature. Traces therefore start below
 100 %, because cold water genuinely derates usable LiFePO4 capacity. This is
 deliberate: hiding that derate would flatter the design.
+
+
+MY FEELING ON HOW IT WENT
+-------------------------
+I spent a fairly substantive time (~30 minutes) at the beginnning considering how
+I would approach the problem. Once I decided, I got very excited about building my 
+model and arguably over-estimated what was possible in the 3 hours. The brief
+encourages the use of AI but I feel I ended up letting it run unchecked to a much
+greater degree than I would have liked due to the limitted time and the scale of 
+what I comitted to building. This was particularly true when it came to 
+implementing the models of the new power generating systems, I would have liked a 
+more hands on approach with the writing of them. Finally, when it came to writing
+the report, I did not have the time I would have liked to fully handcraft this 
+either and had to resort to proof-reading an AI built version. This is the biggest
+shame as that is the work that is being assessed and it is absolutely not how I 
+would approach real work. Those are the corners you have to cut when trying to 
+solve a problem like this in 3 hours without having thought about it before though
+I guess!
