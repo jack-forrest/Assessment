@@ -36,6 +36,21 @@ and a mission planner should already be recovering the vehicle.
 
 ## 2. A single mission, and why no two are identical
 
+All runs in this note assume a **1 June launch**, which is chosen deliberately rather than
+arbitrarily. Three reasons:
+
+- **It exercises a complete seasonal cycle in a single year-long run.** The vehicle meets the
+  best conditions it will ever see and the worst, in that order, so one simulation captures the
+  entire problem.
+- **It is the most favourable possible launch date**, so any failure is a real capability limit
+  rather than an artefact of bad timing. If the vehicle cannot survive a June launch, it cannot
+  survive any launch, which makes every "fails" result in this note a conservative one.
+- **It makes the pass/fail boundary meaningful.** A vehicle that reaches spring with charge in
+  hand will recover over the following summer and can then continue indefinitely, because it
+  returns to the same surplus conditions it started in. Surviving the first winter from a June
+  launch therefore separates "can operate indefinitely at this latitude" from "cannot" — which
+  is exactly the question the customer is asking.
+
 ![Battery state of charge at 65°N, launched 1 June, three weather realisations](mission_65N_1Jun.png)
 
 The figure above shows three runs of the same vehicle at 65 °N, launched 1 June. The shape is
@@ -140,6 +155,27 @@ One further lever is visible only by comparison. The same vehicle at 65 °N laun
 **1 October** survives just 61 days, against 178 days launched in June. Launch timing is worth
 a factor of three in endurance and costs nothing, and it should be exhausted as a mitigation
 before any hardware is considered.
+
+**Why the sweep stops at 74 °N.** The limit is operational rather than electrical:
+
+- **Sea ice.** Above roughly 75 °N the Arctic basin is ice-covered for most or all of the year.
+  A 1 m sailing hull cannot operate in ice — it cannot make way through it, and it risks being
+  beset or crushed. The Barents sector stays navigable further north thanks to the North
+  Atlantic Drift, but that is a regional exception rather than a general case.
+- **The model does not represent ice**, so results beyond that latitude would be misleading.
+  Sea-surface temperature is floored at the freezing point of seawater and there is no ice
+  physics; the model would happily report a number it has no basis to compute.
+- **Ice would also invalidate the wave option specifically.** Pack ice heavily damps the wave
+  field, so a wave-energy harvester loses its resource exactly where the solar deficit is
+  worst — an important point when the two concepts are compared in Part 2.
+- **The answer has already saturated.** December generation is effectively zero from about
+  70 °N upwards, so extending the sweep adds latitude without adding information: the curve is
+  flat and the physics does not change.
+- **Commercial relevance.** Very little sustained commercial ocean activity takes place above
+  75 °N, so the marginal value of characterising it is low relative to the effort.
+
+Navigation is a secondary concern in the same region — magnetic heading reference degrades as
+the magnetic pole is approached — but it is the ice that sets the practical boundary.
 
 ---
 
