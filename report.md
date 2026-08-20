@@ -194,6 +194,20 @@ outcomes turn on luck; this band should be treated as requiring case-by-case ass
 than a blanket yes or no. **Above about 54 °N the current design cannot complete a year**, and
 this is where the customer's question genuinely bites.
 
+**The goal any solution must meet.** C-Star's value is long-duration autonomous operation, so
+the target is that the vehicle should be able to survive **indefinitely** at its operating
+latitude — within reason. The simulation gives a clean test for this: a vehicle that reaches
+spring with charge still in hand returns to the same surplus conditions it launched in, and can
+therefore keep going. Surviving the first winter is equivalent to surviving any number of them.
+
+The bar this study applies is therefore binary rather than incremental: **a solution that cannot
+carry the vehicle through the winter in simulation is insufficient, however much it improves the
+numbers.** Extending endurance from 193 to 250 days does not solve the customer's problem, it
+defers it by two months and still ends with a dead vehicle in the water. "Within reason"
+acknowledges that other mechanisms — biofouling, calendar ageing of the cells, mechanical wear
+on the wingsail and rudder — impose their own limits, but those are measured in years and are a
+separate question from the seasonal energy balance considered here.
+
 **The two options in the brief.** A **small wind turbine** is attractive because the high-latitude
 winter that removes the sun is also windy, so supply and demand are seasonally in phase; the
 questions are how much power is available at the scale of a 1 m, 40 kg sailing hull, and what
@@ -222,5 +236,56 @@ should be confirmed with Oshen before the study is relied upon:
 
 ---
 
+# Part 2 — Assessing the options
+
+## 7. A larger battery
+
+The simplest option is to fit more cells. It carries no technology risk, adds no external
+hardware, no drag, no moving parts and no new failure modes, and it can be done today. Any
+harvester proposal has to beat it, so it is assessed first.
+
+![Safe mission duration against battery capacity at 60°N, launched 1 June](sweep_battery_60N_1Jun.png)
+
+Sweeping nominal capacity from the 1300 Wh baseline upwards at 60 °N, with ten weather runs at
+each point, gives two clear findings.
+
+**Below the survival threshold, capacity buys endurance linearly** — 3.9 days per kilogram of
+cells, or 35 days per 1000 Wh, with a linear fit of R² = 0.9996. There is no efficiency argument
+against a bigger battery: every watt-hour installed pulls its weight. This is worth stating
+plainly, because the intuition that returns must diminish is wrong here.
+
+**But the useful quantity is not days, it is the threshold.** Against the indefinite-survival
+goal set out above, a pack that extends the mission without reaching spring is worthless — it
+delivers a vehicle that dies later. The number that matters is the smallest pack that clears the
+winter, and it scales badly with latitude:
+
+| Latitude | Baseline duration | Pack needed to survive | Added mass | As % of 40 kg vehicle |
+|---|---|---|---|---|
+| 60 °N | 193 d | 3640 Wh (2.8×) | +21.3 kg | **53 %** |
+| 65 °N | 178 d | 4680 Wh (3.6×) | +30.7 kg | **77 %** |
+| 70 °N | 165 d | 6500 Wh (5.0×) | +47.3 kg | **118 %** |
+
+At 60 °N the required battery is over half the mass of the entire vehicle. At 70 °N **the cells
+alone would weigh more than the complete C-Star.** This is no longer a modification; it is a
+different vehicle, with different displacement, freeboard, righting moment, sail-area-to-mass
+ratio, payload capacity and handling characteristics — and it would need to be re-designed and
+re-qualified from the hull outwards.
+
+There is a further trap in the transition. Between 2860 and 3380 Wh at 60 °N the vehicle is in a
+**marginal band where some weather years survive and some do not**. Sizing anywhere in that band
+buys a coin toss, and because the failure mode is a dead vehicle in a remote ocean in winter,
+that is not an acceptable design point. The pack must be sized past the band, not into it.
+
+**Verdict.** A larger battery is technically sound and carries essentially no development risk,
+and it is the right answer for the marginal 50–52 °N band, where a modest increase would convert
+an uncertain outcome into a reliable one. Above roughly 60 °N it fails — not on physics, but on
+mass. It also does nothing for the driven-mode margin discussed in §4, because it adds no
+generation: it enlarges the tank without addressing the fact that nothing is filling it in
+December. It is therefore carried forward as the benchmark that the wind and wave concepts must
+beat, rather than as a recommendation in its own right.
+
+---
+
 *Supporting work: `cstar_power_model.py` (the model, with assumptions `A1`–`A16` documented
-inline), `run_mission.py` (single-mission runs), `sweep_latitude.py` (the latitude envelope).*
+inline), `run_mission.py` (single-mission runs), `sweep_latitude.py` (the latitude envelope),
+`sweep_battery.py` (the capacity study in §7).*
