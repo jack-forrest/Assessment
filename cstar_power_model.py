@@ -291,14 +291,28 @@ class Config:
     #      the same disc in wind. Cp is poor because a propeller is not designed
     #      as a turbine. TO FIRM UP: tow-tank test, measuring both power out and
     #      the drag penalty in.
-    turb_diameter_m: float = 0.10
+    #      Rotor diameter is set by Oshen's EXISTING propeller -- roughly 2-3 cm
+    #      blades, so a ~5 cm swept disc. This is small, and power scales with
+    #      diameter SQUARED, so it dominates the result.
+    turb_diameter_m: float = 0.05         # 2.5 cm blades, per current propeller
     turb_cp: float = 0.25
     turb_efficiency: float = 0.60
-    turb_cut_in_ms: float = 0.35
-    # A23: Boat speed from wind speed, capped at displacement hull speed for a
-    #      1 m waterline (1.34*sqrt(L_ft) kn ~ 1.25 m/s).
+    turb_cut_in_ms: float = 0.25
+    # A24: Axial thrust coefficient of the turbine disc. An ideal Betz turbine
+    #      sits at Ct = 8/9; a propeller run backwards as a turbine, operating
+    #      well below Betz, is lower. This is the DRAG the turbine imposes.
+    #      TO FIRM UP: tow-tank, measuring thrust and power simultaneously.
+    turb_thrust_coeff: float = 0.70
+    # A25: Bare-hull drag at 1 m/s for a 1 m, 40 kg sailing hull with appendages
+    #      -- friction on ~0.35 m^2 wetted area plus form and appendage drag.
+    #      Both hull and turbine drag scale as v^2, so the speed penalty is a
+    #      constant factor: v_with / v_free = sqrt(k_hull / (k_hull + k_turb)).
+    #      TO FIRM UP: tow-tank the bare hull.
+    hull_drag_n_at_1ms: float = 2.0
+    # A23: Boat speed from wind, capped at a measured ~2 kn (1.03 m/s) maximum
+    #      rather than a theoretical hull speed.
     boat_speed_per_wind: float = 0.15
-    boat_hull_speed_ms: float = 1.25
+    boat_hull_speed_ms: float = 1.03      # 2 knots
 
     start_day: int = 1                # day-of-year the mission begins
     extra_power_w: float = 0.0        # constant additional generation (the thing
@@ -567,8 +581,29 @@ def wave_harvester_power(hs: np.ndarray, te: np.ndarray, cfg: Config) -> np.ndar
 
 
 def boat_speed(u10: np.ndarray, cfg: Config) -> np.ndarray:
-    """Speed through the water, capped at displacement hull speed."""
+    """Free-sailing speed through the water, capped at the measured ~2 kn max."""
     return np.minimum(cfg.boat_speed_per_wind * u10, cfg.boat_hull_speed_ms)
+
+
+def turbine_speed_penalty(cfg: Config) -> float:
+    """
+    Fractional speed retained when the turbine is engaged.
+
+    At equilibrium the sail thrust equals total drag. Hull drag and turbine
+    drag both scale as v^2, so the penalty is a single constant factor,
+    independent of speed:
+
+        k_hull * v^2 + k_turb * v^2 = k_hull * v_free^2
+        v / v_free = sqrt( k_hull / (k_hull + k_turb) )
+
+    This is the number that decides whether propeller regeneration is
+    acceptable operationally, so it is computed explicitly rather than
+    asserted.
+    """
+    area = math.pi * (cfg.turb_diameter_m / 2.0) ** 2
+    k_turb = 0.5 * 1025.0 * area * cfg.turb_thrust_coeff
+    k_hull = cfg.hull_drag_n_at_1ms          # drag at 1 m/s == k for a v^2 law
+    return math.sqrt(k_hull / (k_hull + k_turb))
 
 
 def water_turbine_power(v_boat: np.ndarray, cfg: Config) -> np.ndarray:
@@ -666,9 +701,17 @@ def simulate(cfg: Config) -> dict:
     p_wave = wave_harvester_power(hs, te, cfg) if cfg.enable_wave_harvester \
         else np.zeros(n)
 
-    v_boat = boat_speed(u10, cfg)
-    p_turb = water_turbine_power(v_boat, cfg) if cfg.enable_water_turbine \
-        else np.zeros(n)
+    v_free = boat_speed(u10, cfg)
+    if cfg.enable_water_turbine:
+        # The turbine slows the boat, and the slower boat then generates less --
+        # the penalty is applied BEFORE computing power, not after.
+        speed_factor = turbine_speed_penalty(cfg)
+        v_boat = v_free * speed_factor
+        p_turb = water_turbine_power(v_boat, cfg)
+    else:
+        speed_factor = 1.0
+        v_boat = v_free
+        p_turb = np.zeros(n)
 
     p_alt = (p_wind + p_wave + p_turb) * cfg.mppt_efficiency
     p_in = p_in + p_alt
@@ -757,7 +800,8 @@ def simulate(cfg: Config) -> dict:
         t_hours=t_hours, doy=doy, elev=elev, ghi=ghi, ghi_clear=ghi_clear, kt=kt,
         p_in=p_in, t_air=t_air, t_sea=t_sea, t_cell=t_cell, eta_temp=eta_temp,
         p_wind=p_wind, p_wave=p_wave, p_turb=p_turb, p_alt=p_alt,
-        u10=u10, hs=hs, v_boat=v_boat,
+        u10=u10, hs=hs, v_boat=v_boat, v_free=v_free,
+        turbine_speed_factor=speed_factor,
         soc_wh=soc_wh, capacity_wh=capacity_wh, unmet_w=unmet_w,
         charge_blocked=charge_blocked, dumped_wh=dumped_wh,
         gen_wh_day=gen_wh_day, load_wh_day=load_wh_day,
