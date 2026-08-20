@@ -45,14 +45,14 @@ from pathlib import Path
 #
 # ==============================================================================
 
-LATITUDE_DEG = 65.0        # degrees. Negative for southern hemisphere (-55 = Southern Ocean)
+LATITUDE_DEG = 60.0        # degrees. Negative for southern hemisphere (-55 = Southern Ocean)
 
 START_DATE = "01/06"       # when the vehicle is launched. Accepts:
                            #   "1 Oct"  /  "1 October"  /  "2026-10-01"  /  274
 
 MISSION_DAYS = 365         # how long to simulate for
 
-N_RUNS = 3                 # how many weather realisations to overlay
+N_RUNS = 4                 # how many weather realisations to overlay
 
 UNSAFE_SOC_PCT = 20.0      # the red band: below this much of nominal capacity
                            # you have no reserve left

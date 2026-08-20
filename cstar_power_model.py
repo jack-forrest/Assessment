@@ -248,8 +248,10 @@ class Config:
     wind_mean_per_deg: float = 0.070
     wind_seasonal_frac: float = 0.28      # winter windier than summer
     wind_persistence: float = 0.80        # AR(1), daily: gales last days
-    # A18: Turbine hub sits ~1 m above the sea, not at the 10 m reference height.
-    #      Power-law shear over water, alpha ~ 0.11.
+    # A18: Wind is quoted at the 10 m reference height, but the turbine hub sits
+    #      ~1 m above the sea -- inside the atmospheric boundary layer, where
+    #      friction against the sea surface slows the flow. Power-law profile
+    #      over water, alpha ~ 0.11.
     wind_hub_height_m: float = 1.0
     wind_shear_alpha: float = 0.11
 
@@ -309,10 +311,9 @@ class Config:
     #      constant factor: v_with / v_free = sqrt(k_hull / (k_hull + k_turb)).
     #      TO FIRM UP: tow-tank the bare hull.
     hull_drag_n_at_1ms: float = 2.0
-    # A23: Boat speed from wind, capped at a measured ~2 kn (1.03 m/s) maximum
-    #      rather than a theoretical hull speed.
+    # A23: Boat speed from wind, capped at a typical ~1.5 kn (0.77 m/s) maximum.
     boat_speed_per_wind: float = 0.15
-    boat_hull_speed_ms: float = 1.03      # 2 knots
+    boat_hull_speed_ms: float = 0.772     # 1.5 knots
 
     start_day: int = 1                # day-of-year the mission begins
     extra_power_w: float = 0.0        # constant additional generation (the thing

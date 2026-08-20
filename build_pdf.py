@@ -87,11 +87,8 @@ code {
   background: #f3f4f6; padding: 0.3mm 1mm; border-radius: 1.5pt; color: #1f2937;
 }
 
-/* Lead paragraph (the recommendation banner under the title) -------------- */
-body > p:first-of-type {
-  background: #f5f7fa; border-left: 2.2pt solid #2a78d6;
-  padding: 2.2mm 3mm; margin-bottom: 3.2mm; font-size: 9.3pt; text-align: left;
-}
+/* Wide figures (multi-panel comparisons) get the full text column ---------- */
+.figure.wide { max-width: 100%; }
 """
 
 
@@ -117,7 +114,10 @@ def wrap_figures(html: str) -> str:
     def repl(m):
         img, alt = m.group(0), m.group(1)
         cap = f'<div class="caption">{alt}</div>' if alt.strip() else ""
-        return f'<div class="figure">{img}{cap}</div>'
+        # Multi-panel comparison figures are wide and short -- give them the
+        # full text column or the panel labels become unreadable.
+        wide = " wide" if "compare" in img else ""
+        return f'<div class="figure{wide}">{img}{cap}</div>'
 
     return re.sub(r'<p>\s*(?:<img[^>]*alt="([^"]*)"[^>]*>)\s*</p>',
                   lambda m: repl(m), html)
