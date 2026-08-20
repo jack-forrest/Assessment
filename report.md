@@ -289,3 +289,200 @@ beat, rather than as a recommendation in its own right.
 *Supporting work: `cstar_power_model.py` (the model, with assumptions `A1`–`A16` documented
 inline), `run_mission.py` (single-mission runs), `sweep_latitude.py` (the latitude envelope),
 `sweep_battery.py` (the capacity study in §7).*
+
+## 8. A micro wind turbine
+
+**The concept.** A small horizontal-axis rotor, 0.20 m diameter, mounted clear of the wingsail's
+rotation. Modelled as `P = ½ρACpηv³` with a 3 m/s cut-in, a 12 W electrical rating and furling
+above 25 m/s for survival.
+
+**How it is modelled.** Wind is generated as a daily AR(1) series so gales and calms persist for
+days, with a latitude- and season-dependent mean (`A17`): roughly 6.5 m/s at the equator rising to
+~11 m/s at 60°, and **peaking in midwinter** — in direct antiphase with the sun. The series is
+corrected from the 10 m reference height down to a ~1 m hub (`A18`), which costs about 22 %. The
+cubic is evaluated on the hourly distribution rather than on the mean, which matters greatly:
+E[v³] is roughly twice E[v]³ for a realistic wind distribution.
+
+**Result: it works, with a large margin.** Mean output is **2.6 W at 60 °N, 3.1 W at 70 °N** —
+five to ten times the 0.25–0.5 W requirement derived in Part 1, and 2–3× the entire vehicle load.
+
+![Safe mission duration vs latitude with a micro wind turbine](sweep_latitude_wind_1Jun.png)
+
+Every run survives the full year **up to 68 °N**, against 48 °N for solar alone. Between 70 and
+74 °N it becomes marginal — not because the wind fails but because the turbine ices, furls, or
+sits in a winter calm at the exact moment there is no solar backstop at all.
+
+**Blockers.** The physics is the easy part; the integration is not. A rotating machine at the
+masthead of a vehicle whose *entire propulsion system is a rotating wingsail* is a serious
+geometric and aerodynamic conflict — it disturbs the sail's flow and competes for the one
+location with clean air. It puts mass and windage high, directly attacking righting moment on a
+40 kg hull. It adds the first exposed moving bearing on the vehicle, in salt spray, unattended,
+for a year. And it must survive knockdown and full immersion. **Icing at the latitudes where it
+is most needed is the single largest unquantified risk.**
+
+## 9. An inertial wave-energy harvester
+
+**The concept.** A proof mass moving inside the hull, reacting against the hull's wave-driven
+motion, with a linear or rotary power take-off.
+
+**How it is modelled.** A 1 m hull is far shorter than an ocean wavelength (50–150 m), so it is a
+**wave follower** — it rides the surface rather than moving relative to it (`A21`). There is
+therefore no hull-to-water relative motion to exploit, and the only energy available comes from
+the hull's own vertical acceleration acting on an internal mass:
+
+`ω = 2π/Te`,  `a = ω²·Hs/2`,  `E ≈ 2·m·a·s` per half cycle,  `P = E·(2/Te)·η`
+
+with a 2 kg proof mass, 60 mm of usable stroke, and 50 % PTO efficiency. Significant wave height
+is tied to the same wind series (`A20`), so gales bring wind and waves together.
+
+**Result: it falls two orders of magnitude short.** Mean output is **0.023 W** — about 2 % of the
+vehicle load, and roughly one-twentieth of the 0.48 W needed at 70 °N.
+
+![Safe mission duration vs latitude with a wave harvester](sweep_latitude_wave_1Jun.png)
+
+The curve is **indistinguishable from solar alone**: survival still ends at 48 °N. Adding this
+harvester changes nothing.
+
+**Why, and what would change it.** Power is directly proportional to stroke, and a 1 m hull
+simply has no stroke to give. Reaching 0.5 W would need roughly a 20-fold increase in the
+mass–stroke product — a 5 kg mass moving 0.5 m inside a 1 m vehicle, which is not physically
+available. **This is a scale problem, not an engineering-maturity problem**, and no amount of PTO
+refinement recovers a factor of twenty. Wave energy is credible on larger platforms; on C-Star it
+is not.
+
+## 10. Propeller regeneration (water turbine)
+
+**The concept.** No new external hardware at all: let the **existing propeller** freewheel while
+the vehicle is under sail, and run the existing motor as a generator.
+
+**How it is modelled.** Identical turbine physics to the wind case but in water — `ρ = 1025`
+rather than 1.225, an 830-fold density advantage. A 0.10 m disc, Cp 0.25 (a propeller is a poor
+turbine), 60 % drivetrain efficiency. Boat speed is derived from the same wind series and capped
+at displacement hull speed for a 1 m waterline, ~1.25 m/s (`A23`).
+
+**Result: it works, and it works furthest north.** Mean output is **1.0 W at 60 °N, 1.07 W at
+70 °N** — two to four times the requirement.
+
+![Safe mission duration vs latitude with propeller regeneration](sweep_latitude_water_1Jun.png)
+
+**Every run survives the full year across the entire swept range, to 74 °N** — the only option
+tested that does so.
+
+**Why it outperforms wind despite being smaller.** The density ratio. A 0.10 m disc at 1 m/s of
+water beats a 0.20 m rotor in 5 m/s of air. And because boat speed rises with wind, it carries the
+same favourable winter phasing as the turbine while adding no windage and no new external parts.
+
+**Blockers.** The cost is **drag**. Extracting 1 W at 1 m/s demands at least 1 N of thrust deficit
+against a hull drag of perhaps 2–5 N, so a 20–50 % drag penalty and a rough 5–10 % speed loss —
+which compounds, since a slower boat generates less. This must be traded against passage time and
+VMG, and the turbine should almost certainly be **clutched out when the battery is full or when
+making passage matters**. Secondary concerns: the motor and drivetrain must tolerate a year of
+continuous reverse-driven rotation; the propeller becomes a permanent fouling and weed-catching
+site; and the motor controller must support regeneration.
+
+---
+
+# Part 3 — Comparison, testing and recommendation
+
+## 11. The options side by side
+
+All figures at a 1 June launch, ten weather runs per point, against a requirement of 0.25 W at
+65 °N and 0.48 W at 70 °N.
+
+| Option | Mean output | Survives to | Added mass | Verdict |
+|---|---|---|---|---|
+| Solar only (baseline) | — | 48 °N | — | Fails above ~54 °N |
+| Larger battery | — | 60 °N needs 2.8× pack | **+21 to +47 kg** | Fails on mass |
+| **Wind turbine** | 2.6–3.1 W | **68 °N** | ~1–2 kg, high up | Works; hard to integrate |
+| Wave harvester | 0.023 W | 48 °N | ~2–3 kg | **Fails by ~20×** |
+| **Propeller regen** | 1.0–1.1 W | **74 °N+** | **~0 kg** | Works; costs drag |
+
+Three conclusions follow directly:
+
+1. **Wave energy is not viable at this scale** and should be closed out. It is a scale problem,
+   not a maturity problem.
+2. **The larger battery is not a solution above 60 °N**, only a mitigation for the marginal
+   50–52 °N band.
+3. **Both turbine options clear the requirement with margin.** The choice between them is not
+   about power — it is about integration risk, and on that basis propeller regeneration is
+   clearly ahead.
+
+## 12. Recommendation
+
+**Pursue propeller regeneration first.** It is the only option that survives the full swept range
+to 74 °N, it adds no external hardware, no windage and essentially no mass, and it re-uses parts
+already on the vehicle and already qualified. Its risk is a drag penalty that is measurable in a
+tow tank in days, and controllable in software by clutching out when not needed. It also directly
+addresses the driven-mode margin of §4: the same drivetrain both consumes and regenerates.
+
+**Carry the wind turbine as the backup.** It produces the most power and would extend the vehicle
+furthest if the drag penalty proves unacceptable, but it conflicts geometrically with the
+wingsail, raises the centre of gravity on a 40 kg hull, and introduces the vehicle's first
+exposed rotating bearing. Those are real programme risks, not detail design.
+
+**Close out wave energy now** and say so plainly to the customer. Continuing to study it would
+consume budget on a factor-of-twenty gap that no refinement closes.
+
+## 13. How I would de-risk this before spending significantly
+
+Cheapest and most decisive tests first. Each is designed to **kill** the concept if it is going to
+fail.
+
+1. **Fix the input data (days, ~£0).** Replace the synthetic cloud and wind climatology (`A9`,
+   `A17`, `A20`) with ERA5 / NASA POWER reanalysis for the customer's actual operating box, and
+   re-run. Every number in this note moves; nothing else should be funded until this is done.
+2. **Instrument an existing hull (weeks, low cost).** Log an IMU, a GPS speed trace and panel
+   current on a C-Star already going to sea. This simultaneously measures the real acceleration
+   spectrum (killing or confirming wave in one step), the real speed distribution that sets water
+   turbine output, and the real solar shading loss — three assumptions retired for the cost of one
+   deployment.
+3. **Bench-test regeneration (~2 weeks).** Spin the existing motor and controller as a generator
+   at representative rpm; measure electrical output and mechanical torque. Confirms both power and
+   the drag penalty on a bench before anything gets wet.
+4. **Tow-tank the drag trade (~2 weeks).** Measure hull drag with the propeller clutched in and
+   out at 0.5–1.5 m/s. This is the single number that decides the recommendation.
+5. **Sea trial with a data logger, not a mission (~1 month).** Fit regeneration to one vehicle,
+   log everything, and fly a route where failure is recoverable. Do not commit a customer mission
+   until a full seasonal dataset exists.
+
+## 14. Two months versus six months
+
+**With two months**, the goal is a *decision*, not a prototype. I would do steps 1–4 above and
+build a lash-up: existing vehicle, existing motor, a regeneration-capable controller and a data
+logger, tested in a tank and then in sheltered water. The deliverable is a defensible answer to
+"does the drag penalty kill this?" and a measured power curve. I would not attempt the wind
+turbine in two months — the wingsail interaction alone needs CFD or wind-tunnel time, and a
+rushed masthead installation would test the mounting rather than the concept. Scope is protected
+by accepting a non-flight-representative build.
+
+**With six months**, the same first two months run unchanged — the tests above are the critical
+path either way and their value does not scale with schedule. The extra four months buy: a
+flight-representative clutched regeneration drive with proper sealing and bearing life testing; a
+parallel wind turbine feasibility strand taken far enough to compare fairly (mounting geometry,
+sail interaction, icing exposure); a full winter deployment at 60 °N+ to validate the model
+against reality rather than against reanalysis; and re-qualification of the vehicle with the
+modified drivetrain. The deliverable is a prototype Oshen could sell a mission on, rather than an
+answer to a question.
+
+The distinction matters because **the two-month plan is not a compressed six-month plan.** It
+deliberately drops the wind strand, accepts a non-representative build, and buys a decision rather
+than a product. Attempting the six-month scope in two months would produce a prototype that fails
+for integration reasons and would tell us nothing about whether the concept was sound.
+
+## 15. Assumptions and what would firm them up
+
+All model assumptions are labelled `A1`–`A23` inline in `cstar_power_model.py`, each with a
+"TO FIRM UP" note. The five that most affect the conclusions:
+
+| # | Assumption | Why it matters | To firm up |
+|---|---|---|---|
+| `A9` | Cloud from a latitude correlation | Sets the whole solar deficit | ERA5 / PVGIS for the real operating box |
+| `A17` | Wind climatology and its winter peak | The entire case for wind and water | ERA5 reanalysis |
+| `A21` | Wave harvester stroke and proof mass | Decides a 20× shortfall | IMU on a real hull at sea |
+| `A23` | Boat speed from wind speed | Water turbine scales with v³ | GPS traces from existing missions |
+| `A2` | Panels horizontal on deck | Low-sun cosine loss is punishing | CAD; check for usable vertical area |
+
+Two further assumptions bound the study and should be confirmed with Oshen: that **no additional
+solar area is available**, and that **average consumption cannot be reduced below 1 W**. Given
+that the deficit is measured in tenths of a watt, both are disproportionately powerful levers, and
+a winter duty-cycle reduction may be cheaper than any hardware considered here.

@@ -67,6 +67,10 @@ BATTERY_WH = 1300.0        # nominal battery capacity. The baseline C-Star is 13
 
 # ---- less commonly changed ---------------------------------------------------
 LOAD_W = 1.0               # average electrical consumption
+WIND_TURBINE = False       # fit a micro wind turbine
+WAVE_HARVESTER = False     # fit an inertial wave-energy harvester
+WATER_TURBINE = False      # regenerate through the propeller while sailing
+
 EXTRA_POWER_W = 0.0        # constant extra generation, W -- set this to try out
                            # a hypothetical wind turbine or wave harvester
 PLOT = True                # draw the chart at all. Set False for a numbers-only
@@ -152,6 +156,9 @@ def run_once(seed: int, start_doy: int) -> dict:
         years=MISSION_DAYS / 365.0,
         batt_nominal_wh=BATTERY_WH,
         load_w=LOAD_W,
+        enable_wind_turbine=WIND_TURBINE,
+        enable_wave_harvester=WAVE_HARVESTER,
+        enable_water_turbine=WATER_TURBINE,
         extra_power_w=EXTRA_POWER_W,
         start_day=start_doy,
         rng_seed=seed,

@@ -65,6 +65,10 @@ MISSION_DAYS = 365         # simulation horizon (also the censoring ceiling)
 UNSAFE_SOC_PCT = 20.0      # the reserve floor that defines "safe"
 BATTERY_WH = 1300.0        # nominal battery capacity
 LOAD_W = 1.0               # average electrical consumption
+WIND_TURBINE = False       # fit a micro wind turbine
+WAVE_HARVESTER = False     # fit an inertial wave-energy harvester
+WATER_TURBINE = False      # regenerate through the propeller while sailing
+
 EXTRA_POWER_W = 0.0        # constant extra generation, W -- set this to see how
                            # a harvester moves the whole curve
 
@@ -102,6 +106,9 @@ def configure_model() -> None:
     rm.BATTERY_WH = BATTERY_WH
     rm.LOAD_W = LOAD_W
     rm.EXTRA_POWER_W = EXTRA_POWER_W
+    rm.WIND_TURBINE = WIND_TURBINE
+    rm.WAVE_HARVESTER = WAVE_HARVESTER
+    rm.WATER_TURBINE = WATER_TURBINE
     rm.STOP_AT_FLAT = True
 
 
@@ -244,6 +251,12 @@ def plot_sweep(rows: list, start_label: str, out: Path) -> None:
     ax.set_ylabel("Safe mission duration  (days)")
 
     extra = ""
+    if WIND_TURBINE:
+        extra += ", + wind turbine"
+    if WAVE_HARVESTER:
+        extra += ", + wave harvester"
+    if WATER_TURBINE:
+        extra += ", + water turbine"
     if abs(BATTERY_WH - 1300.0) > 1:
         extra += f", {BATTERY_WH:.0f} Wh battery"
     if EXTRA_POWER_W:
@@ -265,7 +278,9 @@ def main() -> None:
     rows = sweep(start_doy)
     print_table(rows, start_label)
 
-    out = HERE / f"sweep_latitude_{start_label.replace(' ', '')}.png"
+    tag = ("wind" if WIND_TURBINE else "") + ("wave" if WAVE_HARVESTER else "") \
+        + ("water" if WATER_TURBINE else "") or "solar"
+    out = HERE / f"sweep_latitude_{tag}_{start_label.replace(' ', '')}.png"
     plot_sweep(rows, start_label, out)
     print(f"  Plot saved to: {out}\n")
 

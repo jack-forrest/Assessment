@@ -233,6 +233,73 @@ class Config:
     timestep_h: float = 1.0
     initial_soc_frac: float = 1.0
     rng_seed: int = 42
+    # ==========================================================================
+    # ALTERNATIVE GENERATION -- switch on to add to the solar array
+    # ==========================================================================
+    enable_wind_turbine: bool = False
+    enable_wave_harvester: bool = False
+    enable_water_turbine: bool = False
+
+    # ---- Wind climatology -----------------------------------------------------
+    # A17: Mean 10 m ocean wind rises with latitude and peaks in winter -- the
+    #      same season the sun disappears. Trades ~7 m/s, N Atlantic winter
+    #      ~13 m/s. TO FIRM UP: ERA5 reanalysis for the operating box.
+    wind_mean_base: float = 6.5
+    wind_mean_per_deg: float = 0.070
+    wind_seasonal_frac: float = 0.28      # winter windier than summer
+    wind_persistence: float = 0.80        # AR(1), daily: gales last days
+    # A18: Turbine hub sits ~1 m above the sea, not at the 10 m reference height.
+    #      Power-law shear over water, alpha ~ 0.11.
+    wind_hub_height_m: float = 1.0
+    wind_shear_alpha: float = 0.11
+
+    # ---- Wind turbine ---------------------------------------------------------
+    # A19: A micro horizontal-axis rotor sized to fit a 1 m hull. Cp is low
+    #      because small rotors run at low Reynolds number.
+    #      TO FIRM UP: buy a Rutland/Ampair-class unit and bench-test its curve.
+    wt_diameter_m: float = 0.20
+    wt_cp: float = 0.30
+    wt_efficiency: float = 0.65           # generator + rectifier + MPPT
+    wt_cut_in_ms: float = 3.0
+    wt_rated_w: float = 12.0              # electrical limit of the machine
+    wt_furl_ms: float = 25.0              # above this it must shut down to survive
+
+    # ---- Wave climatology -----------------------------------------------------
+    # A20: Significant wave height scales with latitude and season, roughly in
+    #      step with the wind. TO FIRM UP: ERA5 / WaveWatch III hindcast.
+    wave_hs_base: float = 1.5
+    wave_hs_per_deg: float = 0.045
+    wave_hs_seasonal_frac: float = 0.30
+
+    # ---- Wave harvester -------------------------------------------------------
+    # A21: A 1 m hull is far shorter than an ocean wavelength (50-150 m), so it
+    #      is a WAVE FOLLOWER -- it rides the surface rather than moving relative
+    #      to it. Power can therefore only come from an internal proof mass
+    #      reacting against the hull's own acceleration, not from hull-to-water
+    #      relative motion. Energy per cycle ~ 2*m*a*s, so power scales with the
+    #      proof mass and, critically, with the available STROKE.
+    #      TO FIRM UP: instrument a hull with an IMU at sea and integrate the
+    #      measured acceleration spectrum -- this is a cheap, decisive test.
+    wave_proof_mass_kg: float = 2.0
+    wave_stroke_m: float = 0.06           # usable travel inside a 1 m hull
+    wave_pto_efficiency: float = 0.50     # power take-off + conditioning
+    wave_capture_factor: float = 0.60     # fraction of ideal stroke actually used
+
+    # ---- Water turbine (propeller regeneration under sail) --------------------
+    # A22: The existing propeller, freewheeling while the vehicle sails. Water is
+    #      ~830x denser than air, so a small disc at 1 m/s is worth far more than
+    #      the same disc in wind. Cp is poor because a propeller is not designed
+    #      as a turbine. TO FIRM UP: tow-tank test, measuring both power out and
+    #      the drag penalty in.
+    turb_diameter_m: float = 0.10
+    turb_cp: float = 0.25
+    turb_efficiency: float = 0.60
+    turb_cut_in_ms: float = 0.35
+    # A23: Boat speed from wind speed, capped at displacement hull speed for a
+    #      1 m waterline (1.34*sqrt(L_ft) kn ~ 1.25 m/s).
+    boat_speed_per_wind: float = 0.15
+    boat_hull_speed_ms: float = 1.25
+
     start_day: int = 1                # day-of-year the mission begins
     extra_power_w: float = 0.0        # constant additional generation (the thing
                                       # a wind turbine or wave harvester would add)
@@ -400,6 +467,127 @@ def panel_power_w(ghi: np.ndarray, t_air: np.ndarray, cfg: Config) -> tuple:
 
 
 # ==============================================================================
+# 4b. ALTERNATIVE GENERATION -- wind, wave, water
+# ==============================================================================
+def wind_speed_series(n_days: int, lat_deg: float, cfg: Config,
+                      rng: np.random.Generator) -> np.ndarray:
+    """
+    Daily-mean 10 m wind speed, then corrected to hub height.
+
+    Two things matter for this problem. First, the mean rises with latitude, so
+    the windiest places are the darkest. Second, the seasonal peak is in WINTER,
+    exactly in antiphase with the solar resource -- which is the whole physical
+    argument for wind as a complement to solar on this vehicle.
+    """
+    lat_abs = abs(lat_deg)
+    u_mean = cfg.wind_mean_base + cfg.wind_mean_per_deg * lat_abs
+
+    doy = np.arange(n_days) % 365
+    phase = 0.0 if lat_deg >= 0 else math.pi
+    # Peak in midwinter: cos peaks at the solstice (day 355 N / 172 S).
+    seasonal = 1.0 + cfg.wind_seasonal_frac * np.cos(
+        2 * math.pi * (doy - 355) / 365.0 + phase)
+    daily_mean = u_mean * seasonal
+
+    # AR(1) multiplicative anomaly -- gales and calms both persist for days.
+    z = np.zeros(n_days)
+    sd = 0.28
+    innov = sd * math.sqrt(1.0 - cfg.wind_persistence ** 2)
+    z[0] = rng.normal(0.0, sd)
+    for i in range(1, n_days):
+        z[i] = cfg.wind_persistence * z[i - 1] + rng.normal(0.0, innov)
+
+    u10 = np.clip(daily_mean * np.exp(z), 0.0, 40.0)
+    # Power-law shear down to hub height: a masthead rotor on a 1 m boat sees
+    # noticeably less wind than the 10 m reference.
+    shear = (cfg.wind_hub_height_m / 10.0) ** cfg.wind_shear_alpha
+    return u10 * shear
+
+
+def wind_turbine_power(u: np.ndarray, cfg: Config) -> np.ndarray:
+    """
+    P = 1/2 rho A Cp eta v^3, with cut-in, rated clip and furling.
+
+    Applied to an hourly wind series, so the cubic is evaluated on the actual
+    distribution rather than on the mean -- which matters enormously, because
+    E[v^3] is roughly twice E[v]^3 for a realistic wind distribution.
+    """
+    rho = 1.225
+    area = math.pi * (cfg.wt_diameter_m / 2.0) ** 2
+    p = 0.5 * rho * area * cfg.wt_cp * cfg.wt_efficiency * np.power(u, 3)
+    p = np.where(u < cfg.wt_cut_in_ms, 0.0, p)      # too slow to start
+    p = np.where(u > cfg.wt_furl_ms, 0.0, p)        # furled for survival
+    return np.clip(p, 0.0, cfg.wt_rated_w)
+
+
+def wave_height_series(u10: np.ndarray, lat_deg: float, cfg: Config) -> tuple:
+    """
+    Significant wave height and energy period, tied to the wind that raises it.
+
+    Hs is anchored to a latitude/season climatology and modulated by the local
+    wind anomaly, so a gale brings both wind AND waves -- the two harvesters are
+    strongly correlated, which matters when judging whether fitting both adds
+    genuine redundancy.
+    """
+    lat_abs = abs(lat_deg)
+    hs_mean = cfg.wave_hs_base + cfg.wave_hs_per_deg * lat_abs
+    ref = cfg.wind_mean_base + cfg.wind_mean_per_deg * lat_abs
+    # Hs grows roughly with wind speed squared in a developing sea; damped here
+    # because fetch and duration limit the response.
+    hs = hs_mean * np.power(np.maximum(u10, 0.1) / ref, 1.2)
+    hs = np.clip(hs, 0.2, 14.0)
+    # Energy period from Hs -- standard engineering approximation for open ocean.
+    te = 4.0 * np.sqrt(hs)
+    return hs, te
+
+
+def wave_harvester_power(hs: np.ndarray, te: np.ndarray, cfg: Config) -> np.ndarray:
+    """
+    Inertial (proof-mass) harvester inside a wave-following hull.
+
+    The hull heaves with the surface, so there is no hull-to-water relative
+    motion to exploit. What is left is the hull's own vertical acceleration
+    acting on an internal mass:
+
+        omega = 2*pi/Te
+        a     = omega^2 * Hs/2          vertical acceleration amplitude
+        E     ~ 2 * m * a * s           energy per half-cycle, mass x force x stroke
+        P     = E * (2/Te) * eta * k
+
+    The brutal term is the stroke `s`. Inside a 1 m hull there is very little of
+    it, and power is directly proportional -- which is why this concept struggles
+    at this scale rather than for any subtler reason.
+    """
+    omega = 2.0 * math.pi / np.maximum(te, 1e-3)
+    accel = np.power(omega, 2) * (hs / 2.0)
+    energy_per_half_cycle = 2.0 * cfg.wave_proof_mass_kg * accel * cfg.wave_stroke_m
+    p = (energy_per_half_cycle * (2.0 / np.maximum(te, 1e-3))
+         * cfg.wave_pto_efficiency * cfg.wave_capture_factor)
+    return np.clip(p, 0.0, 50.0)
+
+
+def boat_speed(u10: np.ndarray, cfg: Config) -> np.ndarray:
+    """Speed through the water, capped at displacement hull speed."""
+    return np.minimum(cfg.boat_speed_per_wind * u10, cfg.boat_hull_speed_ms)
+
+
+def water_turbine_power(v_boat: np.ndarray, cfg: Config) -> np.ndarray:
+    """
+    P = 1/2 rho A Cp eta v^3 in WATER -- rho 1025 rather than 1.225.
+
+    That density ratio is the entire attraction: a 0.1 m disc at 1 m/s beats a
+    0.2 m rotor in 5 m/s of wind. The cost is drag. Extracting P watts at speed v
+    demands at least P/v newtons of thrust deficit, which slows the vehicle --
+    modelled in the report rather than here, because it couples back into
+    passage planning rather than into the energy balance.
+    """
+    rho = 1025.0
+    area = math.pi * (cfg.turb_diameter_m / 2.0) ** 2
+    p = 0.5 * rho * area * cfg.turb_cp * cfg.turb_efficiency * np.power(v_boat, 3)
+    return np.where(v_boat < cfg.turb_cut_in_ms, 0.0, p)
+
+
+# ==============================================================================
 # 5. BATTERY -- temperature derate, charge inhibit, fade
 # ==============================================================================
 def battery_temp_factor(t_c: float | np.ndarray, cfg: Config) -> float | np.ndarray:
@@ -462,6 +650,28 @@ def simulate(cfg: Config) -> dict:
     # --- Generation -----------------------------------------------------------
     p_panel, t_cell, eta_temp = panel_power_w(ghi, t_air, cfg)
     p_in = p_panel * cfg.mppt_efficiency
+
+    # --- Alternative generation ----------------------------------------------
+    # Wind drives all three: the turbine directly, the waves it raises, and the
+    # boat speed that spins the water turbine. One shared series keeps them
+    # correctly correlated -- a calm kills all three at once.
+    u_hub = np.repeat(wind_speed_series(n_days, cfg.latitude_deg, cfg, rng),
+                      steps_per_day)
+    u10 = u_hub / ((cfg.wind_hub_height_m / 10.0) ** cfg.wind_shear_alpha)
+
+    p_wind = wind_turbine_power(u_hub, cfg) if cfg.enable_wind_turbine \
+        else np.zeros(n)
+
+    hs, te = wave_height_series(u10, cfg.latitude_deg, cfg)
+    p_wave = wave_harvester_power(hs, te, cfg) if cfg.enable_wave_harvester \
+        else np.zeros(n)
+
+    v_boat = boat_speed(u10, cfg)
+    p_turb = water_turbine_power(v_boat, cfg) if cfg.enable_water_turbine \
+        else np.zeros(n)
+
+    p_alt = (p_wind + p_wave + p_turb) * cfg.mppt_efficiency
+    p_in = p_in + p_alt
 
     # --- Battery integration --------------------------------------------------
     soc_wh = np.zeros(n)
@@ -546,6 +756,8 @@ def simulate(cfg: Config) -> dict:
         cfg=cfg, n_days=n_days, steps_per_day=steps_per_day,
         t_hours=t_hours, doy=doy, elev=elev, ghi=ghi, ghi_clear=ghi_clear, kt=kt,
         p_in=p_in, t_air=t_air, t_sea=t_sea, t_cell=t_cell, eta_temp=eta_temp,
+        p_wind=p_wind, p_wave=p_wave, p_turb=p_turb, p_alt=p_alt,
+        u10=u10, hs=hs, v_boat=v_boat,
         soc_wh=soc_wh, capacity_wh=capacity_wh, unmet_w=unmet_w,
         charge_blocked=charge_blocked, dumped_wh=dumped_wh,
         gen_wh_day=gen_wh_day, load_wh_day=load_wh_day,
